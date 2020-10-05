@@ -6,6 +6,9 @@ const messages = require("./messages")
 const express = require("express")
 const app = express()
 
+// const mongoose = require("mongoose")
+// mongoose.connect("localhost:50006://mongo/tcurescue")
+
 const line = require('@line/bot-sdk')
 
 const config = {
@@ -42,12 +45,19 @@ function handleEvent(event) {
   }
 
   if (messages.submsg_list.includes(event.message.text)) {
-    // DB操作
+    // TODO: DBにタスク情報追加(第1段階)する処理を書く
+    return client.replyMessage(event.replyToken, messages.choose_classroom)
+  }
+
+  if (messages.classroom_list.includes(event.message.text)) {
+    // TODO: DBにタスク情報追加(第2段階)する処理を書く
+    // TODO: 直接教室名を入力したときに弾くためのバリデーションを書く
+    return client.replyMessage(event.replyToken, messages.finish)
   }
 
   return client.replyMessage(event.replyToken, {
     type: 'text',
-    text: event.message.text
+    text: "このメッセージは対応していません。選択肢から選んでください。"
   });
 }
 
