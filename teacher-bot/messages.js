@@ -954,6 +954,11 @@ const error = {
   "text": "エラーが発生しました。操作を最初からやり直してください。"
 }
 
+const default_msg = {
+  "type": "text",
+  "text": "このメッセージは対応していません。選択肢から選んでください。"
+}
+
 const submsg_list = [
   "Zoom---Zoomが立ち上がらない",
   "Zoom---ミーティングが開始できない",
@@ -1029,6 +1034,7 @@ module.exports = {
   choose_classroom,
   finish,
   error,
+  default_msg,
   submsg_list,
   classroom_list
 }

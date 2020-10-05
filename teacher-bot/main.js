@@ -17,6 +17,19 @@ const line_config = {
   channelSecret: env.LINE_CHANNEL_SECRET
 }
 
+const axios_base = require("axios")
+const axios = axios_base.create({
+  baseURL: "https://api.line.me",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+    "Authorization": `Bearer ${env.LINE_H_CHANNEL_ACCESS_TOKEN}`
+  },
+  responseType: "json"
+})
+
+// /v2/bot/message/broadcast
+
 app.post("/webhook", line.middleware(line_config), (req, res) => {
   Promise
     .all(req.body.events.map(handleEvent))
@@ -72,11 +85,13 @@ async function handleEvent(event) {
 
   if (messages.classroom_list.includes(event.message.text)) {
     let id = ""
+    let task_name = ""
     const is_confirmed = await Task.find({ "user_id": event.source.userId })
       .sort({ updated_at: -1 })
       .limit(1)
       .then(data => {
         id = data[0]._id
+        task_name = data[0].task_name
         return data[0].is_confirmed
       })
       .catch(err => {
@@ -101,7 +116,22 @@ async function handleEvent(event) {
         })
 
       if (result) {
-        return client.replyMessage(event.replyToken, messages.finish)
+        const post = await axios.post("/v2/bot/message/broadcast", {
+          "messages": [
+            {
+              "type": "text",
+              "text": `出動要請です。\n場所: ${event.message.text}\n理由: ${task_name}`
+            }
+          ]
+        })
+          .then(() => { return true })
+          .catch(err => { return false })
+        if (post) {
+          return client.replyMessage(event.replyToken, messages.finish)
+        }
+        else {
+          return client.replyMessage(event.replyToken, messages.error)
+        }
       }
       else {
         return client.replyMessage(event.replyToken, messages.error)
@@ -112,10 +142,7 @@ async function handleEvent(event) {
     }
   }
 
-  return client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: "このメッセージは対応していません。選択肢から選んでください。"
-  });
+  return client.replyMessage(event.replyToken, messages.default_msg);
 }
 
 app.listen(50005, () => {
