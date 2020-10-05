@@ -2,19 +2,14 @@ require('dotenv').config()
 const env = process.env
 
 const messages = require("./messages")
-
-const uuid = require("uuid")
+const model = require("./model")
 
 const express = require("express")
 const app = express()
 
-const AWS = require("aws-sdk")
-AWS.config.update({
-  accessKeyId: env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-  region: env.AWS_REGION
-})
-const db_client = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10' });
+const mongoose = require("mongoose")
+mongoose.connect("mongodb://localhost/tr_task")
+const Task = model.Task
 
 const line = require('@line/bot-sdk')
 const line_config = {
@@ -33,7 +28,7 @@ app.post("/webhook", line.middleware(line_config), (req, res) => {
 
 const client = new line.Client(line_config)
 
-function handleEvent(event) {
+async function handleEvent(event) {
   if (event.type !== 'message' || event.message.type !== 'text') {
     return Promise.resolve(null);
   }
@@ -51,20 +46,21 @@ function handleEvent(event) {
   }
 
   if (messages.submsg_list.includes(event.message.text)) {
-    const params = {
-      TableName: "tr_task",
-      Item: {
-        id: uuid.v4(),
-        task_name: event.message.text,
-        user_id: event.source.userId,
-        is_confirmed: false,
-        created_at: new Date().getTime(),
-        updated_at: new Date().getTime()
-      }
-    }
-    const result = db_client.put(params, (err, data) => {
-      return !err
+    const task = new Task({
+      task_name: event.message.text,
+      place_name: "",
+      user_id: event.source.userId,
+      is_confirmed: false,
+      created_at: new Date().getTime(),
+      updated_at: new Date().getTime()
     })
+
+    const result = await task.save()
+      .then(() => { return true })
+      .catch(err => {
+        console.log(err)
+        return false
+      })
 
     if (result) {
       return client.replyMessage(event.replyToken, messages.choose_classroom)
@@ -75,9 +71,45 @@ function handleEvent(event) {
   }
 
   if (messages.classroom_list.includes(event.message.text)) {
-    // TODO: DBにタスク情報追加(第2段階)する処理を書く
-    // TODO: 直接教室名を入力したときに弾くためのバリデーションを書く
-    return client.replyMessage(event.replyToken, messages.finish)
+    let id = ""
+    const is_confirmed = await Task.find({ "user_id": event.source.userId })
+      .sort({ updated_at: -1 })
+      .limit(1)
+      .then(data => {
+        id = data[0]._id
+        return data[0].is_confirmed
+      })
+      .catch(err => {
+        console.log(err)
+        return true
+      })
+
+    if (!is_confirmed) {
+      const result = Task.update({ "_id": id },
+        {
+          $set: {
+            is_confirmed: true,
+            place_name: event.message.text,
+            updated_at: new Date().getTime()
+          }
+        })
+        .then(() => {
+          return true
+        })
+        .catch(err => {
+          return false
+        })
+
+      if (result) {
+        return client.replyMessage(event.replyToken, messages.finish)
+      }
+      else {
+        return client.replyMessage(event.replyToken, messages.error)
+      }
+    }
+    else {
+      return client.replyMessage(event.replyToken, messages.error)
+    }
   }
 
   return client.replyMessage(event.replyToken, {
@@ -88,4 +120,4 @@ function handleEvent(event) {
 
 app.listen(50005, () => {
   console.log("server started!")
-});
+})
