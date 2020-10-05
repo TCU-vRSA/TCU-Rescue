@@ -949,6 +949,11 @@ const finish = {
   "text": "ヘルプリクエストを受け付けました。10分経っても担当者が来ない場合は、情報基盤センターに電話をお願いします。"
 }
 
+const error = {
+  "type": "text",
+  "text": "エラーが発生しました。操作を最初からやり直してください。"
+}
+
 const submsg_list = [
   "Zoom---Zoomが立ち上がらない",
   "Zoom---ミーティングが開始できない",
@@ -1023,6 +1028,7 @@ module.exports = {
   pc,
   choose_classroom,
   finish,
+  error,
   submsg_list,
   classroom_list
 }

@@ -3,20 +3,26 @@ const env = process.env
 
 const messages = require("./messages")
 
+const uuid = require("uuid")
+
 const express = require("express")
 const app = express()
 
-// const mongoose = require("mongoose")
-// mongoose.connect("localhost:50006://mongo/tcurescue")
+const AWS = require("aws-sdk")
+AWS.config.update({
+  accessKeyId: env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+  region: env.AWS_REGION
+})
+const db_client = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10' });
 
 const line = require('@line/bot-sdk')
-
-const config = {
+const line_config = {
   channelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
   channelSecret: env.LINE_CHANNEL_SECRET
 }
 
-app.post("/webhook", line.middleware(config), (req, res) => {
+app.post("/webhook", line.middleware(line_config), (req, res) => {
   Promise
     .all(req.body.events.map(handleEvent))
     .then((result) => res.json(result))
@@ -25,7 +31,7 @@ app.post("/webhook", line.middleware(config), (req, res) => {
     })
 })
 
-const client = new line.Client(config)
+const client = new line.Client(line_config)
 
 function handleEvent(event) {
   if (event.type !== 'message' || event.message.type !== 'text') {
@@ -45,8 +51,27 @@ function handleEvent(event) {
   }
 
   if (messages.submsg_list.includes(event.message.text)) {
-    // TODO: DBにタスク情報追加(第1段階)する処理を書く
-    return client.replyMessage(event.replyToken, messages.choose_classroom)
+    const params = {
+      TableName: "tr_task",
+      Item: {
+        id: uuid.v4(),
+        task_name: event.message.text,
+        user_id: event.source.userId,
+        is_confirmed: false,
+        created_at: new Date().getTime(),
+        updated_at: new Date().getTime()
+      }
+    }
+    const result = db_client.put(params, (err, data) => {
+      return !err
+    })
+
+    if (result) {
+      return client.replyMessage(event.replyToken, messages.choose_classroom)
+    }
+    else {
+      return client.replyMessage(event.replyToken, messages.error)
+    }
   }
 
   if (messages.classroom_list.includes(event.message.text)) {
